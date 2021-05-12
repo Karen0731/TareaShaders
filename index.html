@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+      html, body
+      {
+          width: 100%;
+          height: 100%;
+          padding: 0;
+          margin: 0;
+          overflow: hidden;
+      }
+    </style>
+</head>
+<body>
+  <script type='x-shader/x-vertex' id='vertexshader'>  
+    varying vec2 vUv;
+
+    void main()
+    {
+        vUv = uv;
+        vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+        gl_Position = projectionMatrix * mvPosition;
+    }
+  </script>
+
+  <script type='x-shader/x-fragment' id='fragmentshader'>
+    uniform float time;
+    uniform sampler2D colorTexture;
+    varying vec2 vUv;
+
+    void main( void ) 
+    {
+        vec2 position = - 1.0 + 2.0 * vUv;
+
+        float a = atan( position.y, position.x );
+        float r = sqrt( dot( position, position ) );
+
+        vec2 uv;
+        uv.x = cos( a ) / r;
+        uv.y = sin( a ) / r;
+        uv /= 10.0;
+        uv += time * 0.05;
+
+        vec3 color = texture2D( colorTexture, uv ).rgb;
+
+        gl_FragColor = vec4( color * r * 1.5, 1.0 );
+    }
+  </script>
+
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+    import {OrbitControls} from "https://unpkg.com/three@0.119.0/examples/jsm/controls/OrbitControls.js";
+    import Stats from "https://unpkg.com/three/examples/jsm/libs/stats.module.js";
+
+    "use strict";
+
+    let renderer, scene, camera, mesh, stats, cameraControls, gui, clock;
+    let uniforms;
+
+    function init(event) {
+        // RENDERER ENGINE
+        renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setClearColor(new THREE.Color(0, 0, 0));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // SCENE
+        scene = new THREE.Scene();
+
+        clock = new THREE.Clock();
+
+        // CAMERA
+        let fovy = 60.0;    // Field ov view
+        let aspectRatio = window.innerWidth / window.innerHeight;
+        let nearPlane = 0.1;
+        let farPlane = 10000.0;
+        camera = new THREE.PerspectiveCamera(fovy, aspectRatio, nearPlane, farPlane);
+        camera.position.set(0, 0, 3);
+        cameraControls = new OrbitControls(camera, renderer.domElement);
+                
+        // MODEL
+        let geometry = new THREE.BoxGeometry( 0.75, 0.75, 0.75 );
+
+        let n = geometry.attributes.position.count; // number of vertices
+
+        uniforms = {
+					"time": { value: 1.0 },
+					"colorTexture": { value: new THREE.TextureLoader().load( 'textures/disturb.jpg' ) }
+				};
+
+        uniforms[ "colorTexture" ].value.wrapS = uniforms[ "colorTexture" ].value.wrapT = THREE.RepeatWrapping;
+
+        // MATERIAL
+        let material = new THREE.ShaderMaterial( {
+            uniforms: uniforms,
+            vertexShader:   document.getElementById('vertexshader').textContent,
+            fragmentShader: document.getElementById('fragmentshader').textContent,
+            transparent: true
+        });
+
+        // MESH
+        mesh = new THREE.Mesh(geometry, material);
+
+        // SCENE HIERARCHY
+        scene.add(mesh);
+
+        // GUI
+        gui = new dat.GUI();
+        gui.close();
+
+        // SETUP STATS
+        stats = new Stats();
+        stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+        document.body.appendChild(stats.dom);
+
+        // DRAW SCENE IN A RENDER LOOP (ANIMATION)
+        renderLoop();
+    }
+
+    function renderLoop() {
+        stats.begin();
+        renderer.render(scene, camera); // DRAW SCENE
+        updateScene();
+        stats.end();
+        stats.update();
+        requestAnimationFrame(renderLoop);
+    }
+
+    function updateScene() {
+
+        const delta = clock.getDelta();
+        uniforms[ "time" ].value = clock.elapsedTime;
+
+
+        mesh.rotation.y += delta * 0.5 * ( 5 % 2 ? 1 : - 1 );
+        mesh.rotation.x += delta * 0.5 * ( 5 % 2 ? - 1 : 1 );
+
+        
+    }
+
+    // EVENT LISTENERS & HANDLERS
+
+    document.addEventListener("DOMContentLoaded", init);
+
+    window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        cameraControls.update();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }, false);
+  </script>
+</body>
+</html>
